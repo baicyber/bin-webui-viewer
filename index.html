@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bin → 192.168.4.1 页面查看器</title>
+<style>
+  :root{
+    --bg:#f4f6fa; --card:#ffffff; --ink:#1b2738; --sub:#63748c; --line:#dde4ee;
+    --teal:#0d9488; --blue:#2563eb; --amber:#b45309; --shadow:0 6px 22px rgba(28,45,74,.08);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+  .wrap{max-width:960px;margin:0 auto;padding:28px 20px 40px}
+  header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+  header h1{font-size:20px;margin:0 0 4px;letter-spacing:.2px}
+  header p{margin:0;color:var(--sub);font-size:13px;max-width:680px}
+  .lang{display:flex;gap:4px;background:#e9eef5;border:1px solid var(--line);border-radius:9px;padding:3px;flex-shrink:0}
+  .lang button{border:0;background:transparent;color:var(--sub);font-size:12px;font-weight:600;padding:5px 10px;border-radius:7px;cursor:pointer}
+  .lang button:hover{color:var(--ink)}
+  .lang button.on{background:#fff;color:var(--teal);box-shadow:0 1px 4px rgba(28,45,74,.12)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:20px;margin-top:18px}
+
+  /* 上传区 */
+  .drop{border:2px dashed #b9c8dc;border-radius:12px;padding:30px 18px;text-align:center;cursor:pointer;transition:.18s;background:#fbfcfe}
+  .drop:hover,.drop.drag{border-color:var(--teal);background:#f0fbf9}
+  .drop .big{font-size:16px;font-weight:600}
+  .drop .small{color:var(--sub);font-size:12px;margin-top:6px}
+  .drop .ico{font-size:30px;margin-bottom:6px}
+  input[type=file]{display:none}
+  .status{margin-top:12px;font-size:12.5px;color:var(--sub);min-height:20px}
+  .status .ok{color:var(--teal);font-weight:600}
+  .status .err{color:#c0392b;font-weight:600}
+  .bar-wrap{height:6px;background:#eef2f7;border-radius:6px;overflow:hidden;margin-top:10px;display:none}
+  .bar-wrap.on{display:block}
+  .bar-wrap i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--teal),#34d399);transition:width .3s}
+
+  /* 浏览器窗口 */
+  .browser{margin-top:18px;display:none}
+  .browser.on{display:block}
+  .chrome{border:1px solid var(--line);border-radius:12px 12px 0 0;background:#eef1f6;overflow:hidden}
+  .toolbar{display:flex;align-items:center;gap:10px;padding:9px 12px}
+  .lights{display:flex;gap:6px}
+  .lights i{width:10px;height:10px;border-radius:50%;display:block}
+  .lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+  .addr{flex:1;display:flex;align-items:center;gap:7px;background:#fff;border:1px solid #d8dfeb;border-radius:8px;padding:6px 10px;font-size:12.5px;color:#35445e;user-select:text;overflow:hidden}
+  .addr b{color:var(--teal);font-weight:600}
+  .addr span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .btn{border:1px solid #d3dce9;background:#fff;color:#33445e;border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .btn:hover{background:#f7f9fc}
+  .btn.primary{background:var(--teal);border-color:var(--teal);color:#fff}
+  .btn.primary:hover{filter:brightness(.96)}
+  .frame-wrap{border:1px solid var(--line);border-top:0;border-radius:0 0 12px 12px;overflow:hidden;background:#fff;height:760px}
+  iframe{width:100%;height:100%;border:0;display:block;background:#fff}
+  .meta{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--sub)}
+  .meta b{color:var(--ink)}
+  .note{font-size:12px;color:var(--sub);background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:14px}
+  .note b{color:#8a5a00}
+  @media(max-width:600px){header{flex-direction:column}.frame-wrap{height:620px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1 data-i18n="title">Bin → 192.168.4.1 页面查看器</h1>
+      <p data-i18n="sub">上传固件 bin，自动提取里面内嵌的真实 WebUI 页面并直接显示。纯本地处理，不联网、不上传。</p>
+    </div>
+    <div class="lang" id="langBox">
+      <button data-lang="zh" class="on">中文</button>
+      <button data-lang="en">English</button>
+      <button data-lang="fr">Français</button>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="drop" id="drop">
+      <div class="ico">📦</div>
+      <div class="big" data-i18n="dropBig">拖拽 bin 到这里，或点击选择文件</div>
+      <div class="small" data-i18n="dropSmall">支持 .bin / .img · 会自动扫描内嵌网页、解压、注入模拟数据后渲染</div>
+    </div>
+    <input type="file" id="file" accept=".bin,.img">
+    <div class="bar-wrap" id="barWrap"><i id="bar"></i></div>
+    <div class="status" id="status">等待上传…</div>
+  </div>
+
+  <div class="browser" id="browser">
+    <div class="chrome">
+      <div class="toolbar">
+        <div class="lights"><i></i><i></i><i></i></div>
+        <div class="addr"><b>http://</b><span id="addrText">192.168.4.1/</span></div>
+        <button class="btn primary" id="openNew" data-i18n="openNew">↗ 新窗口打开</button>
+      </div>
+    </div>
+    <div class="frame-wrap"><iframe id="frame"></iframe></div>
+    <div class="meta" id="meta"></div>
+  </div>
+
+  <div class="note"><b data-i18n="noteHead">说明：</b><span data-i18n-html="noteBody">显示的是从 bin 里解压出来的原始页面（不是模板）。页面上的实时数据由本地模拟接口提供，因为离线状态没有真设备连接。需要浏览器支持 <code>DecompressionStream</code>（新版 Chrome / Edge）。</span></div>
+</div>
+
+<script>
+/* ============ 多语言 ============ */
+const I18N={
+  zh:{
+    title:'Bin → 192.168.4.1 页面查看器',
+    sub:'上传固件 bin，自动提取里面内嵌的真实 WebUI 页面并直接显示。纯本地处理，不联网、不上传。',
+    dropBig:'拖拽 bin 到这里，或点击选择文件',
+    dropSmall:'支持 .bin / .img · 会自动扫描内嵌网页、解压、注入模拟数据后渲染',
+    waiting:'等待上传…', openNew:'↗ 新窗口打开',
+    noteHead:'说明：',
+    noteBody:'显示的是从 bin 里解压出来的原始页面（不是模板）。页面上的实时数据由本地模拟接口提供，因为离线状态没有真设备连接。需要浏览器支持 <code>DecompressionStream</code>（新版 Chrome / Edge）。',
+    lblFile:'文件',lblOffset:'偏移',lblPage:'页面',lblApi:'接口数据',valMocked:'已模拟',
+    frameTitle:'从固件提取的真实网页',
+    reading:'读取 {name} ({size} MB)…', scanning:'扫描内嵌网页…', trying:'尝试解压候选 {n}/{m}',
+    done:'完成', success:'✓ 已提取并渲染真实页面（来自 bin，非模板）',
+    errPrefix:'✗ {msg}', errGeneric:'{msg}',
+    eNoDecompress:'当前浏览器不支持 DecompressionStream，请用新版 Chrome 或 Edge 打开',
+    eNoGzip:'bin 中没有找到 gzip 压缩块，可能不是带 WebUI 的固件',
+    eNoHtml:'gzip 块解压后未发现 HTML 页面，这个 bin 可能不含内嵌网页',
+    noFile:'请先上传一个包含 WebUI 的 bin',
+    popupBlocked:'弹窗被拦截，请在浏览器设置中允许弹出窗口后重试'
+  },
+  en:{
+    title:'Bin → 192.168.4.1 Page Viewer',
+    sub:'Upload a firmware bin, automatically extract the embedded real WebUI page and display it. Fully local — no network, no upload.',
+    dropBig:'Drop a bin here, or click to choose a file',
+    dropSmall:'Accepts .bin / .img · scans for an embedded page, decompresses, injects mock data, then renders',
+    waiting:'Waiting for upload…', openNew:'↗ Open in new window',
+    noteHead:'Note: ',
+    noteBody:'What you see is the original page extracted from the bin (not a template). Live data comes from a local mock API because no real device is connected offline. Requires a browser with <code>DecompressionStream</code> (recent Chrome / Edge).',
+    lblFile:'File',lblOffset:'Offset',lblPage:'Page',lblApi:'API data',valMocked:'Simulated',
+    frameTitle:'Real web page extracted from firmware',
+    reading:'Reading {name} ({size} MB)…', scanning:'Scanning for embedded page…', trying:'Trying gzip candidate {n}/{m}',
+    done:'Done', success:'✓ Extracted and rendered the real page (from bin, not a template)',
+    errPrefix:'✗ {msg}', errGeneric:'{msg}',
+    eNoDecompress:'This browser lacks DecompressionStream. Please use a recent Chrome or Edge.',
+    eNoGzip:'No gzip block found in the bin; it may not be firmware with a WebUI.',
+    eNoHtml:'No HTML page found after decompressing; this bin may not contain an embedded web page.',
+    noFile:'Please upload a bin containing a WebUI first',
+    popupBlocked:'Popup blocked. Allow popups in your browser settings and try again.'
+  },
+  fr:{
+    title:'Bin → 192.168.4.1 - Visualiseur de page',
+    sub:'Téléversez un bin de firmware, extrayez automatiquement la vraie page WebUI intégrée et affichez-la. Traitement 100 % local — aucun réseau, aucun envoi.',
+    dropBig:'Déposez un bin ici, ou cliquez pour choisir un fichier',
+    dropSmall:'Accepte .bin / .img · recherche la page Web intégrée, la décompresse, injecte des données simulées, puis l’affiche',
+    waiting:'En attente du téléversement…', openNew:'↗ Ouvrir dans une nouvelle fenêtre',
+    noteHead:'Remarque : ',
+    noteBody:'La page affichée est la page d’origine extraite du bin (pas un modèle). Les données en direct proviennent d’une API simulée localement, car aucun appareil réel n’est connecté hors ligne. Nécessite un navigateur prenant en charge <code>DecompressionStream</code> (Chrome / Edge récents).',
+    lblFile:'Fichier',lblOffset:'Décalage',lblPage:'Page',lblApi:'Données API',valMocked:'Simulées',
+    frameTitle:'Vraie page Web extraite du firmware',
+    reading:'Lecture de {name} ({size} Mo)…', scanning:'Recherche de la page Web intégrée…', trying:'Essai du bloc gzip {n}/{m}',
+    done:'Terminé', success:'✓ Page réelle extraite et affichée (du bin, pas un modèle)',
+    errPrefix:'✗ {msg}', errGeneric:'{msg}',
+    eNoDecompress:'Ce navigateur ne prend pas en charge DecompressionStream. Utilisez un Chrome ou Edge récent.',
+    eNoGzip:'Aucun bloc gzip trouvé dans le bin ; il ne s’agit peut-être pas d’un firmware avec WebUI.',
+    eNoHtml:'Aucune page HTML trouvée après décompression ; ce bin ne contient peut-être pas de page Web intégrée.',
+    noFile:'Veuillez d’abord téléverser un bin contenant une WebUI',
+    popupBlocked:'Fenêtre bloquée. Autorisez les fenêtres surgissantes dans les paramètres du navigateur, puis réessayez.'
+  }
+};
+let lang='zh';
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function t(key,vars){
+  let s=(I18N[lang]&&I18N[lang][key])||I18N.zh[key]||key;
+  if(vars) for(const k in vars) s=s.replace(new RegExp('\\{'+k+'\\}','g'),esc(vars[k]));
+  return s;
+}
+function applyI18n(){
+  document.documentElement.lang=lang==='zh'?'zh-CN':lang;
+  document.title=t('title');
+  document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent=t(el.dataset.i18n); });
+  document.querySelectorAll('[data-i18n-html]').forEach(el=>{ el.innerHTML=t(el.dataset.i18nHtml); });
+  document.querySelectorAll('#langBox button').forEach(b=>b.classList.toggle('on',b.dataset.lang===lang));
+  $('frame').title=t('frameTitle');
+  if(currentMeta) renderMeta();
+  if(lastStatus) paintStatus();
+  try{ localStorage.setItem('binViewerLang',lang); }catch(e){}
+}
+try{ const saved=localStorage.getItem('binViewerLang'); if(saved&&I18N[saved]) lang=saved; }catch(e){}
+
+/* ============ 通用注入层：适配任意固件的内嵌页面 ============
+   三件事：① 拦截所有 fetch/XHR（不限 /api/ 前缀）返回 ok 数据；
+          ② 关闭免责声明/首次配置遮罩（保留按钮可点）；
+          ③ 通用导航兜底，兼容多种 DOM 结构。                    */
+const WEB_API_SHIM = `<script>
+(function(){
+ /* ---------- 1. 通用模拟数据 ---------- */
+ var VER='v3.35.2';
+ var B={ok:true,success:true,connected:true,online:true,ready:true,active:true,running:true,
+  configured:true,completed:true,choice:'later',wifi_connected:true,
+  setupMode:false,nvsError:false,enabled:false,blocked:false,
+  state:'OK',status:'OK',mode:'manual',version:VER,firmware:'P4-CAN Universal '+VER,
+  ssid:'P4-CAN-Universal',ip:'192.168.4.1',passwordIsDefault:false,reconnecting:false,
+  rebootRequired:false,canStopped:false,nagSupported:false,migrationNotice:false,
+  vehicle:'MODEL_Y_JUNIPER',profile:'MODEL_Y_JUNIPER',apState:'STANDBY',
+  uptime:3600,heap:120000,freeHeap:80000,temperature:42,rssi:-48,
+  known:true,connected:true,userDisabled:false,tempValid:1,tempLevel:0,
+  chipTempCx10:425,healthModelVersion:2,level:0,rawLevel:0,reasonText:'正常',rawReasonText:'正常',
+  message:'模拟数据 · 离线页面',error:'',value:0,count:0};
+ var ARR=['saved','defaults','rows','entries','items','list','devices','errors','events','can',
+  'history','profiles','data','results','channels','pins','timings','stats','records','scenes',
+  'drivers','zones','presets','listen','plugins'];
+ function data(url){
+  var d={},k; for(k in B) d[k]=B[k];
+  ARR.forEach(function(x){ if(!(x in d)) d[x]=[]; });
+  d.system={ok:true,version:VER,uptime:3600,freeHeap:80000,heap:120000,
+    device:'ESP32-P4',chip:'ESP32-P4',build:'v3.35.2',state:'OK'};
+  d.status=Object.assign({},d);           // 兼容读 status.ok / status.xxx
+  d.wifi={ok:true,ssid:B.ssid,ip:B.ip,connected:true,connecting:false,enabled:true,
+    rssi:-48,passwordIsDefault:false,scanState:'idle'};
+  d.ota={ok:true,state:'idle',progress:0,version:VER,versionCurrent:VER,updating:false,busy:false};
+  d.profile={ok:true,status:'ready',selected:'default',configured:true,active:'default'};
+  d.gpio={ok:true,saved:[],defaults:[],pins:[]};
+  d.can={ok:true,connected:true,state:'OK',known:true};
+  // 健康/温度/CAN 真实字段（该固件 /health 接口使用）
+  d.can0=d.can1=d.can2={ok:true,known:true,connected:true,userDisabled:false,state:'OK',enabled:true};
+  d.health={
+    ok:true,healthModelVersion:2,tempValid:1,tempLevel:0,chipTempCx10:425,
+    level:0,rawLevel:0,reasonText:'正常',rawReasonText:'正常',pendingMs:0,
+    can0:d.can0,can1:d.can1,can2:d.can2
+  };
+  d.system_status=d.status;
+  d.runtime_status={ok:true,runtimeAllowed:true,uptime:3600,freeHeap:80000,heap:120000};
+  // 让所有 CAN 诊断页也有“运行中”的 TWAI 数据
+  d.can_diag={ok:true,buses:[0,1,2].map(function(i){return {
+    controller:i,available:true,running:true,userDisabled:false,busOff:false,recovering:false,
+    txErrorPassive:false,listenOnly:false,nominalBitrate:500000,
+    rxCount:1200+i*100,txCount:300+i*50,
+    rxRate:35+Math.floor(Math.random()*10),txRate:8+Math.floor(Math.random()*5),
+    rxQueueDepth:1,txQueueDepth:0,rxQueueMaxDepth:3,txQueueMaxDepth:2,
+    criticalRxQueueDepth:0,realtimeRxQueueDepth:1,controlRxQueueDepth:0,
+    criticalRxMissedCount:0,realtimeRxMissedCount:0,realtimeRxStaleDropCount:0,
+    controlRxMissedCount:0,controlRxStaleDropCount:0,
+    rxQueueDropCount:0,txQueueDropCount:0,rxQueueMaxDepth:3,txQueueMaxDepth:2,
+    hwFilterCount:0,softwareFilterCount:0,softwareFilterIds:[],
+    lastRxAgeMs:5,lastTxAgeMs:20,txFailIds:[],errorEvents:[],txErrorCount:0,rxErrorCount:0
+  }})};
+  d.onboarding={ok:true,completed:true,visible:false,done:true,step:''};
+  d.management={ok:true,revision:1,locked:false,pending:false,reason:'none',state:'unlocked',
+    targetVersion:'',targetCommit:'',known:true,version:VER};
+  d.auth={ok:true,authorized:true,loggedIn:true};
+  d.gateway={ok:true,connected:true,online:true};
+  d.cloud={ok:true,connected:true,online:true,enabled:false,state:'idle'};
+  d.runtime={ok:true,uptime:3600,heap:120000,freeHeap:80000};
+  // 让按路径取子对象的页面也能拿到合法结构（用 split/join 避免模板字符串里的正则转义问题）
+  var raw=String(url||'').split('?')[0];
+  var seg=raw.split('/').join('_'); if(seg&&seg.charAt(0)==='_')seg=seg.slice(1);
+  // 按接口路径给顶层字段：页面直接读 j.can0 / j.chipTempCx10 等
+  if(raw.indexOf('/health')>=0){
+    d.healthModelVersion=2;d.tempValid=1;d.tempLevel=0;d.chipTempCx10=425;
+    d.level=0;d.rawLevel=0;d.reasonText='正常';d.rawReasonText='正常';
+    d.can0=d.can1=d.can2=d.health.can0;
+  }
+  if(raw.indexOf('/system_status')>=0){d.health=d.health;d.device={chipModel:'ESP32-P4',chipRevision:'1.3',boardProfile:'P4-CAN Universal',firmwareVersion:VER,appElfSha256:'a1b2c3d4e5f60718293a4b5c6d7e8f90',bootSessionId:'SIM-0001'};}
+  if(raw.indexOf('/can_diag')>=0) d.can_diag=d.can_diag;
+  if(raw.indexOf('/config')>=0){d.fsdAutoStartEnabled=true;d.canCommsEnabled=true;d.canBusEnabled=true;d.can0TxEnabled=true;d.can1TxEnabled=true;d.can2TxEnabled=true;}
+  // 旧版 P4-CAN 固件：/api/snapshot?groups=home-fast 提供 CAN1/2/3 + AP 展示
+  if(raw.indexOf('/api/snapshot')>=0){
+    var canTraffic={};
+    for(var ci=1;ci<=3;ci++) canTraffic['can'+ci]={};
+    for(var ci=1;ci<=3;ci++){
+      canTraffic['can'+ci+'State']=1;           // RUNNING (0 STOPPED / 1 RUNNING / 2 BUS OFF)
+      canTraffic['can'+ci+'Ready']=true;
+      canTraffic['can'+ci+'TrafficSeen']=true;
+      canTraffic['can'+ci+'TrafficOnline']=true;
+      canTraffic['can'+ci+'TrafficAgeMs']=20+ci*7;
+    }
+    var r79={txState:'ACTIVE',txReason:'AUTOPILOT',txOk:128,txFail:0,
+      lastTxValid:true,lastTxAgeMs:340,gearName:'D'};
+    d.fast={
+      nag:{torque:1.25,apActive:true,canAState:1,handsOnState:0,stoppedGate:false,stopCarrierActive:false},
+      blink:{displayState:6,displayStateValid:true,enabled:true,cancelPaused:false},
+      cantraffic:canTraffic,
+      r79:r79,
+      summon:{tlssc:true}
+    };
+    d.slow={
+      blink:{displayState:6,displayStateValid:true,enabled:true,cancelPaused:false},
+      summon:{tlssc:true},
+      s3xy:{bluetoothEnabled:true,pairedCount:3,connectedCount:3},
+      r79:r79,
+      lab3f8:{alcMode:2}
+    };
+  }
+  if(seg&&!d[seg]) d[seg]={ok:true,enabled:false,state:'idle',version:VER,values:{},config:{}};
+  return d;
+ }
+ function resp(body,status){
+  return Promise.resolve(new Response(typeof body==='string'?body:JSON.stringify(body),
+   {status:status||200,headers:{'Content-Type':'application/json'}}));
+ }
+ function isPost(o){
+  var m=(o&&o.method)?o.method:(o&&String(o).indexOf('POST')>=0?'POST':'GET');
+  return String(m).toUpperCase()==='POST';
+ }
+ var _fetch=window.fetch.bind(window);
+ window.fetch=function(url,opt){
+  var u=String((url&&url.url)?url.url:(url||''));
+  // 放行非本机绝对地址与外部资源（用字符串判断，避免模板字符串里的正则转义问题）
+  var low=u.toLowerCase();
+  if(low.indexOf('data:')===0||low.indexOf('blob:')===0||low.indexOf('about:')===0) return _fetch(url,opt);
+  // 绝对 URL 只有指向本机/局域网才模拟，其余放行
+  if(low.indexOf('http')===0){
+   var local=low.indexOf('192.168')>=0||low.indexOf('127.0.0.1')>=0||
+     low.indexOf('localhost')>=0||low.indexOf('10.')>=0;
+   if(!local) return _fetch(url,opt);
+  }
+  if(isPost(opt)) return resp({ok:true,success:true,rebootRequired:false,blocked:false,error:''});
+  return resp(data(u));
+ };
+ try{
+  window.XMLHttpRequest=function(){
+   var self=this; this.readyState=0;this.status=200;this.statusText='OK';
+   this.responseText='';this.response='';this.onreadystatechange=null;this.onload=null;
+   this.open=function(m,u){self._m=m;self._u=u;self.readyState=1;};
+   this.setRequestHeader=function(){};
+   this.send=function(){
+    var body=isPost({method:self._m})?{ok:true,success:true,rebootRequired:false,blocked:false,error:''}:data(self._u);
+    self.responseText=JSON.stringify(body);self.response=self.responseText;self.readyState=4;
+    setTimeout(function(){ if(self.onreadystatechange)self.onreadystatechange(); if(self.onload)self.onload(); },0);
+   };
+   this.abort=function(){};
+  };
+ }catch(e){}
+
+ /* ---------- 2. 关闭免责声明 / 首次配置遮罩（按钮仍可点） ---------- */
+ function closeOverlays(){
+  // 2a. 优先调用页面自带的关闭函数
+  ['closeLegalNotice','dismissLegalNotice','closeDisclaimer','acceptLegal','acknowledgeNotice'].forEach(function(fn){
+   if(typeof window[fn]==='function'){ try{window[fn]()}catch(e){} }
+  });
+  // 2b. 直接给常见遮罩加 hidden（保留 DOM，用户需要时仍可交互）
+  var ids=['legalNotice','legalBackdrop','disclaimer','setupScreen','onboardingOverlay','firstRunModal','onboardingDialog'];
+  ids.forEach(function(id){var e=document.getElementById(id);if(e){e.classList.add('hidden');if(typeof e.close==='function'&&e.open){try{e.close()}catch(err){}}}});
+  var sels=['.legalBackdrop','.legal-overlay','.disclaimer','.first-run','[role="dialog"].modal'];
+  sels.forEach(function(sel){ document.querySelectorAll(sel).forEach(function(e){e.classList.add('hidden')}); });
+ }
+
+ /* ---------- 3. 通用导航兜底 ---------- */
+ function pageName(b){
+  return b.getAttribute('data-page-target')||b.getAttribute('data-page')||
+    b.getAttribute('data-tab')||b.getAttribute('data-view')||
+    (b.id?b.id.replace(/^(nav|tab|btn|go)[-_]?/i,'').toLowerCase():'')||'';
+ }
+ function isNav(b){
+  if(b.matches&&b.matches('.navbtn,.bottomNav button,[data-page-target],[data-nav],[data-tab],nav button'))return true;
+  var n=pageName(b); return !!n && /page|tab|nav|bottom|menu/i.test(b.className||'');
+ }
+ function switchPage(name,b){
+  var tried=false;
+  // 页面自带函数优先
+  var fns=['setAppPage','showPage','switchPage','navigateTo','openPage','setPage'];
+  for(var i=0;i<fns.length;i++){ if(typeof window[fns[i]]==='function'){try{window[fns[i]](name);tried=true;break}catch(e){}} }
+  if(!tried){
+   document.querySelectorAll('[data-app-page],[data-page],.appPage,.page').forEach(function(p){
+    var pn=p.getAttribute('data-app-page')||p.getAttribute('data-page');
+    if(pn) p.classList.toggle('hidden',pn!==name);
+   });
+  }
+  // 高亮同类导航按钮
+  document.querySelectorAll('.navbtn,[data-page-target],[data-nav],[data-tab],nav button').forEach(function(x){
+   x.classList.toggle('active',x===b);
+  });
+  try{window.scrollTo(0,0)}catch(e){}
+ }
+ function bindNav(){
+  document.querySelectorAll('.navbtn,[data-page-target],[data-nav],[data-tab],.bottomNav button,nav button').forEach(function(b){
+   b.style.pointerEvents='auto';
+   if(b.__simBound)return; b.__simBound=true;
+   b.addEventListener('click',function(){
+    var name=pageName(b); if(!name)return;
+    switchPage(name,b);
+   },true);
+  });
+ }
+
+ /* ---------- 4. 连接状态保活 + 强制填充“读取中”字段 ---------- */
+ function setText(id,value){var e=document.getElementById(id);if(e)e.textContent=value;}
+ function setDot(id,level){
+  var e=document.getElementById(id);if(!e)return;
+  var cls=['level-blue','level-yellow','level-red'];
+  e.classList.remove('level-blue','level-yellow','level-red','level-0','level-1','level-2');
+  e.classList.add(cls[level]||'level-blue');
+ }
+ function keepAlive(){
+  document.querySelectorAll('[data-conn]').forEach(function(e){e.textContent='已连接';e.className='live ok';});
+  // 主开关默认打开（控制全部 CAN 功能发送）
+  var master=document.getElementById('canCommsEnabled');
+  if(master&&!master.checked){master.checked=true;master.dispatchEvent(new Event('change',{bubbles:true}));}
+  // 概览：三项 CAN + 温度 + 运行时间 + 系统健康
+  for(var i=0;i<3;i++){
+   setDot('can'+i+'Dot',0);setText('can'+i+'Text','CAN'+i+' 已连接');
+   setText('canPinText'+i,'针脚 '+(i===0?'13/14':(i===1?'9/10':'2/3')));
+   setText('diagCan'+i+'BoardPins','针脚 '+(i===0?'13/14':(i===1?'9/10':'2/3')));
+   setDot('diagCan'+i+'Dot',0);setText('diagCan'+i+'State','运行中');setText('diagCan'+i+'Text','运行中');
+  }
+  setDot('chipTempDot',0);setText('chipTempText',(42.5).toFixed(1)+' °C');
+  setDot('backendDot',0);setText('systemUptimeText','01:00:00');
+  setDot('systemHealthDot',0);setText('systemHealthText','正常');
+  setText('gatewayAutopilotConfigText','FSD');
+  setText('seatSceneRuntimeState','就绪');
+  // 旧版 P4-CAN 页面：CAN1/2/3 全部 LIVE + AP/R79/S3XY 信号
+  for(var oi=1;oi<=3;oi++){
+    setText('can'+oi+'Badge','RUNNING');
+    setText('can'+oi+'Traffic','LIVE');
+    setText('can'+oi+'Age',(['BODY','CHASSIS','PARTY'][oi-1])+' · '+(20+oi*7)+' ms 自报文起');
+    var badge=document.getElementById('can'+oi+'Badge'); if(badge) badge.className='badge good';
+    var traffic=document.getElementById('can'+oi+'Traffic'); if(traffic) traffic.className='homeBusVal good';
+  }
+  setText('apMode','FSD');setText('apModeLabel','自动辅助驾驶 · NOA 导航');
+  setText('apModeSub','NOA 导航已启用。');
+  setText('torque','+1.25');setText('blinkerState','就绪');
+  setText('homeS3xy','3 / 3');setText('homeR79State','已启用 · AP 已接入');
+  setText('homeR79Reason','AUTOPILOT');setText('homeR79TxOk','128');setText('homeR79TxFail','0');
+  setText('homeR79Last','340 ms');
+  // 驾驶员识别
+  setText('driverActiveName','默认驾驶员');setText('driverRecognitionState','已识别');
+  setText('driverBindingState','已绑定');setText('driverParameterMode','当前驾驶员');
+  // 电池预热/网络/Wi-Fi/OTA 等常见“读取中”
+  setDot('batteryPreheatRunDot',0);setText('batteryPreheatRunState','车辆当前未加热');
+  setText('batteryPreheatCanStatus','已连接');setText('batteryPreheatTempRange','18–22 °C');
+  ['otaVersion','otaBuildVersion','otaSlot','otaBootSlot','otaTargetSlot','otaBootMatchesRunning','otaMaxSizeText'].forEach(function(id){setText(id,id==='otaVersion'?VER:(id==='otaMaxSizeText'?'8 MB':'正常'));});
+  setText('networkWifiState','已连接');setText('networkApState','运行中');setText('networkCloudState','已开启');
+  setText('gatewayConfigurationState','已配置');setText('wifiApState','运行中（有设备连接）');
+  setText('wifiExternalState','已连接');setText('autoDiagLevel','正常');
+ }
+
+ function run(){ closeOverlays(); bindNav(); keepAlive(); }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run);else run();
+ setTimeout(run,120);setTimeout(run,400);setTimeout(run,1200);
+ setInterval(keepAlive,800);
+ window.__SIMULATED_API__=true;
+})();
+<\/script>`;
+function buildPage(html){
+  if(html.indexOf('__SIMULATED_API__')>=0) return html;
+  return /<head[^>]*>/i.test(html) ? html.replace(/(<head[^>]*>)/i,'$1'+WEB_API_SHIM)
+                                   : WEB_API_SHIM+html;
+}
+
+/* ============ 从 bin 扫描 gzip 块并解压出真实 WebUI 页面 ============ */
+function fail(key){ const e=new Error(key); e.i18nKey=key; throw e; }
+async function extractWebPage(data, onProgress){
+  if(typeof DecompressionStream==='undefined') fail('eNoDecompress');
+  const marks=[];
+  const limit=Math.min(data.length,0x10000000);
+  for(let i=0;i<limit-3;i++){
+    if(data[i]===0x1f&&data[i+1]===0x8b&&data[i+2]===0x08){ marks.push(i); i+=2; }
+  }
+  if(!marks.length) fail('eNoGzip');
+  let best=null;
+  for(let n=0;n<marks.length;n++){
+    const i=marks[n];
+    if(onProgress) onProgress(Math.round((n+1)/marks.length*90),'trying',{n:n+1,m:marks.length});
+    try{
+      const blob=new Blob([data.subarray(i,Math.min(data.length,i+0x800000))]);
+      const reader=blob.stream().pipeThrough(new DecompressionStream('gzip')).getReader();
+      const parts=[]; let total=0;
+      try{ for(;;){ const r=await reader.read(); if(r.done) break; parts.push(r.value); total+=r.value.length; } }catch(e){}
+      if(total<5000) continue;
+      const out=new Uint8Array(total); let q=0; for(const p of parts){ out.set(p,q); q+=p.length; }
+      let s; try{ s=new TextDecoder('utf-8',{fatal:true}).decode(out); }catch(e){ continue; }
+      if(/^\s*<!DOCTYPE html/i.test(s)||/^\s*<html[\s>]/i.test(s)){
+        if(!best||out.length>best.size) best={html:s,offset:i,size:out.length,name:''};
+      }
+    }catch(e){}
+  }
+  if(!best) fail('eNoHtml');
+  return best;
+}
+
+/* ============ 交互 ============ */
+const $=id=>document.getElementById(id);
+const drop=$('drop'), fileInput=$('file'), statusEl=$('status');
+let currentHtml='', currentMeta=null, lastStatus=null;
+
+function paintStatus(){
+  if(!lastStatus){ statusEl.textContent=t('waiting'); return; }
+  const {key,vars,cls}=lastStatus;
+  statusEl.innerHTML=cls?'<span class="'+cls+'">'+t(key,vars)+'</span>':t(key,vars);
+}
+function setStatus(key,vars,cls){ lastStatus={key,vars,cls}; paintStatus(); }
+function progress(pct,key,vars){
+  $('barWrap').classList.add('on'); $('bar').style.width=pct+'%';
+  if(key) setStatus(key,vars);
+}
+function renderMeta(){
+  const r=currentMeta;
+  $('meta').innerHTML='<span>'+t('lblFile')+' <b>'+esc(r.name)+'</b></span>'+
+    '<span>'+t('lblOffset')+' <b>0x'+r.offset.toString(16).toUpperCase().padStart(8,'0')+'</b></span>'+
+    '<span>'+t('lblPage')+' <b>'+(r.size/1024).toFixed(0)+' KB</b></span>'+
+    '<span>'+t('lblApi')+' <b>'+t('valMocked')+'</b></span>';
+}
+async function handleFile(file){
+  if(!file) return;
+  setStatus('reading',{name:file.name,size:(file.size/1048576).toFixed(2)});
+  progress(4);
+  try{
+    const buf=await file.arrayBuffer();
+    const data=new Uint8Array(buf);
+    progress(8,'scanning');
+    const res=await extractWebPage(data,(p,k,v)=>progress(p,k,v));
+    currentHtml=buildPage(res.html);
+    currentMeta={name:file.name,offset:res.offset,size:res.size};
+    progress(100,'done');
+    setTimeout(()=>$('barWrap').classList.remove('on'),700);
+    $('frame').srcdoc=currentHtml;
+    $('addrText').textContent='192.168.4.1/';
+    renderMeta();
+    $('browser').classList.add('on');
+    setStatus('success',null,'ok');
+  }catch(e){
+    $('barWrap').classList.remove('on');
+    const msg=e.i18nKey?t(e.i18nKey):e.message;
+    setStatus('errPrefix',{msg},'err');
+  }
+}
+
+document.querySelectorAll('#langBox button').forEach(b=>b.onclick=()=>{ lang=b.dataset.lang; applyI18n(); });
+drop.onclick=()=>fileInput.click();
+drop.ondragover=e=>{ e.preventDefault(); drop.classList.add('drag'); };
+drop.ondragleave=()=>drop.classList.remove('drag');
+drop.ondrop=e=>{ e.preventDefault(); drop.classList.remove('drag'); handleFile(e.dataTransfer.files[0]); };
+fileInput.onchange=e=>handleFile(e.target.files[0]);
+
+$('openNew').onclick=()=>{
+  if(!currentHtml){ setStatus('noFile',null,'err'); return; }
+  const blob=new Blob([currentHtml],{type:'text/html;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const w=window.open(url,'_blank');
+  if(!w) setStatus('popupBlocked',null,'err');
+  else setTimeout(()=>URL.revokeObjectURL(url),60000);
+};
+
+applyI18n();
+</script>
+</body>
+</html>

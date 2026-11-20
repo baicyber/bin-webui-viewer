@@ -1,0 +1,13 @@
+# Firmware binaries and extracted pages are not part of this repo
+*.bin
+*.img
+webui_from_bin.html
+webui_p4_old.html
+
+# Temporary verification artifacts
+test_*
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
